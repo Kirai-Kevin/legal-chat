@@ -3,8 +3,8 @@ import { Box, CircularProgress, Alert } from '@mui/material';
 import SendbirdApp from '@sendbird/uikit-react/App';
 import { useEmail } from '../contexts/EmailContext';
 import '@sendbird/uikit-react/dist/index.css';
-import { RenderUserProfileProps } from '@sendbird/uikit-react/types';
-import { SendbirdConfig } from '@sendbird/chat';
+import type { SendbirdChatParams } from '@sendbird/chat/lib/SendbirdChat';
+import type { ModuleNamespaces } from '@sendbird/chat';
 
 interface ChatProps {
   user: {
@@ -39,8 +39,8 @@ interface MessageType {
     members: ChannelMember[];
     customType: string;
     data: any;
+    getChannel?: () => Promise<any>;
   };
-  getChannel?: () => Promise<any>;
 }
 
 export default function Chat({ user }: ChatProps) {
@@ -80,9 +80,9 @@ export default function Chat({ user }: ChatProps) {
         data: message.data
       });
 
-      if (message.messageType === 'email') {
+      if (message.messageType === 'email' && message.channel) {
         // Extract recipient info from channel or message
-        const channel = message.channel || await message.getChannel();
+        const channel = message.channel;
         console.log('Channel info:', {
           url: channel.url,
           members: channel.members?.map((m: ChannelMember) => ({ 
@@ -98,9 +98,13 @@ export default function Chat({ user }: ChatProps) {
         const recipient = channel.members?.find((m: ChannelMember) => m.userId !== user.userId);
         console.log('Identified recipient:', recipient);
 
+        if (!recipient?.metaData?.email && !recipient?.userId) {
+          throw new Error('Recipient email or user ID not found');
+        }
+
         await emailService.sendEmail({
           from: user.userId,
-          to: recipient?.metaData?.email || recipient?.userId,
+          to: recipient.metaData?.email || recipient.userId,
           replyBody: message.message,
           threadId: message.messageId,
           attachments: message.files?.map((file) => ({
@@ -140,26 +144,21 @@ export default function Chat({ user }: ChatProps) {
     );
   }
 
+  const sendbirdConfig: SendbirdChatParams<ModuleNamespaces> = {
+    appId: appId,
+    userId: user.userId,
+    nickname: user.nickname,
+    logLevel: 'debug',
+    reconnection: true
+  };
+
   return (
     <div style={{ height: 'calc(100vh - 100px)' }}>
       <SendbirdApp
-        appId={appId}
-        userId={user.userId}
-        nickname={user.nickname}
-        theme="light"
+        {...sendbirdConfig}
         showSearchIcon={true}
-        renderUserProfile={(_: RenderUserProfileProps) => <div />}
-        onError={(error: Error) => {
-          console.error('Sendbird error:', error);
-          setError(error.message);
-        }}
+        renderUserProfile={() => <div />}
         onMessageSend={handleMessageSend}
-        config={{
-          logLevel: 'debug',
-          reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 1000
-        } as SendbirdConfig}
       />
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ m: 2, position: 'absolute', top: 0, right: 0 }}>

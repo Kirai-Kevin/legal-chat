@@ -29,16 +29,18 @@ export default function Login({ onLogin }: LoginProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:3000';
+
   // Debounce the submit function to prevent rapid requests
   const debouncedSubmit = useCallback(
     debounce(async (formData: { name: string; email: string; role: UserRole }) => {
       try {
-        const response = await axios.post('http://localhost:3000/users/register', formData);
+        const response = await axios.post(`${backendUrl}/users/register`, formData);
         const { sendbirdUserId: userId, nickname } = response.data;
         onLogin({ userId, nickname });
-      } catch (err: any) {
+      } catch (err: unknown) {
         let errorMessage = 'Failed to create user. Please try again.';
-        if (err?.response?.status === 429) {
+        if (axios.isAxiosError(err) && err.response?.status === 429) {
           errorMessage = 'Too many attempts. Please wait a few minutes and try again.';
         }
         setError(errorMessage);
@@ -47,7 +49,7 @@ export default function Login({ onLogin }: LoginProps) {
         setLoading(false);
       }
     }, 1000), // 1 second delay between submissions
-    [onLogin]
+    [onLogin, backendUrl]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {

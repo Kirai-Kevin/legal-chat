@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Box, Typography, Paper, CircularProgress, Alert } from '@mui/material';
+import { Box, CircularProgress, Alert } from '@mui/material';
 import SendbirdApp from '@sendbird/uikit-react/App';
 import { useEmail } from '../contexts/EmailContext';
 import '@sendbird/uikit-react/dist/index.css';
+import { RenderUserProfileProps } from '@sendbird/uikit-react/types';
+import { SendbirdConfig } from '@sendbird/chat';
 
 interface ChatProps {
   user: {
@@ -11,10 +13,39 @@ interface ChatProps {
   };
 }
 
+interface ChannelMember {
+  userId: string;
+  nickname: string;
+  metaData?: {
+    email?: string;
+  };
+}
+
+interface MessageType {
+  messageType: string;
+  sender: any;
+  receiver: any;
+  channelUrl: string;
+  messageId: string;
+  message: string;
+  customType: string;
+  data: any;
+  files?: Array<{
+    url: string;
+    name: string;
+  }>;
+  channel?: {
+    url: string;
+    members: ChannelMember[];
+    customType: string;
+    data: any;
+  };
+  getChannel?: () => Promise<any>;
+}
+
 export default function Chat({ user }: ChatProps) {
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isInitialized, setIsInitialized] = useState(false);
   const appId = import.meta.env.VITE_SENDBIRD_APP_ID;
   const emailService = useEmail();
 
@@ -23,9 +54,9 @@ export default function Chat({ user }: ChatProps) {
       try {
         setIsLoading(true);
         // Add any necessary initialization logic here
-        setIsInitialized(true);
-      } catch (err: any) {
-        setError(`Failed to initialize Sendbird: ${err.message}`);
+      } catch (err) {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(`Failed to initialize Sendbird: ${errorMessage}`);
       } finally {
         setIsLoading(false);
       }
@@ -36,7 +67,7 @@ export default function Chat({ user }: ChatProps) {
     }
   }, [appId, user.userId]);
 
-  const handleMessageSend = async (message: any) => {
+  const handleMessageSend = async (message: MessageType) => {
     try {
       console.log('Message received in handleMessageSend:', {
         messageType: message.messageType,
@@ -54,7 +85,7 @@ export default function Chat({ user }: ChatProps) {
         const channel = message.channel || await message.getChannel();
         console.log('Channel info:', {
           url: channel.url,
-          members: channel.members?.map(m => ({ 
+          members: channel.members?.map((m: ChannelMember) => ({ 
             userId: m.userId,
             nickname: m.nickname,
             email: m.metaData?.email
@@ -64,7 +95,7 @@ export default function Chat({ user }: ChatProps) {
         });
 
         // Find recipient (member who is not the sender)
-        const recipient = channel.members?.find(m => m.userId !== user.userId);
+        const recipient = channel.members?.find((m: ChannelMember) => m.userId !== user.userId);
         console.log('Identified recipient:', recipient);
 
         await emailService.sendEmail({
@@ -72,15 +103,16 @@ export default function Chat({ user }: ChatProps) {
           to: recipient?.metaData?.email || recipient?.userId,
           replyBody: message.message,
           threadId: message.messageId,
-          attachments: message.files?.map((file: any) => ({
+          attachments: message.files?.map((file) => ({
             url: file.url,
             filename: file.name
           }))
         });
       }
-    } catch (error: any) {
-      console.error('Error in handleMessageSend:', error);
-      setError(`Failed to send email: ${error.message}`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      console.error('Error in handleMessageSend:', err);
+      setError(`Failed to send email: ${errorMessage}`);
     }
   };
 
@@ -116,19 +148,18 @@ export default function Chat({ user }: ChatProps) {
         nickname={user.nickname}
         theme="light"
         showSearchIcon={true}
-        renderUserProfile={() => null}
-        onError={(error) => {
+        renderUserProfile={(_: RenderUserProfileProps) => <div />}
+        onError={(error: Error) => {
           console.error('Sendbird error:', error);
           setError(error.message);
         }}
         onMessageSend={handleMessageSend}
         config={{
           logLevel: 'debug',
-          isOnline: true,
           reconnection: true,
           reconnectionAttempts: 5,
           reconnectionDelay: 1000
-        }}
+        } as SendbirdConfig}
       />
       {error && (
         <Alert severity="error" onClose={() => setError(null)} sx={{ m: 2, position: 'absolute', top: 0, right: 0 }}>

@@ -23,4 +23,17 @@ export default defineConfig({
       port: 5173,
     },
   },
+  build: {
+    outDir: 'dist',
+    sourcemap: false,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'mui-vendor': ['@mui/material', '@mui/icons-material'],
+          'sendbird-vendor': ['@sendbird/chat', '@sendbird/uikit-react'],
+        }
+      }
+    }
+  }
 })

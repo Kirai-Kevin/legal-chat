@@ -8,13 +8,13 @@ interface EmailProviderProps {
 }
 
 export function EmailProvider({ children }: EmailProviderProps) {
-  const emailService = new EmailService(import.meta.env.VITE_BACKEND_URL);
+  const emailService = new EmailService();
 
   useEffect(() => {
     return () => {
       emailService.disconnect();
     };
-  }, []);
+  }, [emailService]);
 
   return (
     <EmailContext.Provider value={emailService}>
